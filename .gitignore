@@ -12,6 +12,7 @@
 *.out
 
 # Other
+*.csv
 *.xls
 *.xlsx
 *.py
