@@ -10,3 +10,14 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Other
+*.xls
+*.xlsx
+*.py
+*.R
+*.xmind
+.*.*
+stocker
+stocker.v*
+Earnings
