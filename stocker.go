@@ -131,7 +131,6 @@ var hkplotsFlag *bool = flag.Bool("hkplots", false, "download then plot all the 
 var usCorrAnalysis *string = flag.String("usanalyze", "", "specify the stock symbol to calculate the corr with all the stocks in the us market")
 var startTime *string = flag.String("start", "", "specify the start time 'yyyymmdd', default nil means no specify")
 var endTime *string = flag.String("end", "", "specify the end time 'yyyymmdd', default nil means no specify")
-var capmTopN *int = flag.Int("topn", 1000, "used with -usanalyze, specify topn corr least stocks")
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -753,6 +752,15 @@ func main() {
 		}
 	} else if *crawlAllUsStocks {
 		if p := genParser(us); p != nil {
+			tdir := filepath.Join(curdir, "us")
+			if err = os.MkdirAll(tdir, 0755); err != nil {
+				logger.Error("Mkdir %s error: %v", tdir, err)
+				os.Exit(-1)
+			}
+			if err = os.Chdir(tdir); err != nil {
+				logger.Error("Chdir %s error: %v", tdir, err)
+				os.Exit(-1)
+			}
 			crawlSymbols(p.Symbols(), stype, opaque, "all us stocks")
 		}
 	} else if *usStocksFlag {
@@ -883,13 +891,17 @@ func main() {
 		fmt.Printf("%s", showStock(*hkStockTag, hk, *forceFlag))
 	} else if *usCorrAnalysis != "" {
 		// analyze the correlation of a 'stock' with all the us market stocks, now YAHOO only
-		sbs := getYHsymbols(".")
+		tdir := filepath.Join(curdir, "us")
+		sbs := getYHsymbols(tdir)
 		if sbs == nil {
 			os.Exit(-1)
 		}
+		if err = os.Chdir(tdir); err != nil {
+			logger.Error("Chdir %s error: %v", tdir, err)
+			os.Exit(-1)
+		}
 		if a := helperAnalyzer(stype, opaque3); a != nil {
-			indices := getCAPMindices(stype, us)
-			fintech.Analyze(a, sbs, indices, *usCorrAnalysis, 100, *capmTopN, *paramRF)
+			fintech.Analyze(a, sbs, getCAPMindices(stype, us), *usCorrAnalysis, 100, *paramRF)
 		}
 	} else if *plotSymbol != "" {
 		// plot xueqiu or yahoo symbols
