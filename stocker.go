@@ -138,8 +138,20 @@ func helperAnalyzer(tag int, opaque string) fintech.Analyzer {
 	var a fintech.Analyzer = nil
 	switch tag {
 	case xq:
-		// TODO XUEQIU support
-		logger.Error("XuqQiu Analyzer is commming soon...")
+		a = fintech.NewXueQiuAnalyzer()
+		params := strings.Split(opaque, kSemiColon)
+		if err := a.(*fintech.XueQiuAnalyzer).SetAuth(params[0]); err != nil {
+			logger.Error("SetAuth '%s' error: %v", params[0], err)
+			return nil
+		}
+		if err := a.(*fintech.XueQiuAnalyzer).SetStartDate(params[1]); err != nil {
+			logger.Error("SetStartDate '%s' error: %v", params[1], err)
+			return nil
+		}
+		if err := a.(*fintech.XueQiuAnalyzer).SetEndDate(params[2]); err != nil {
+			logger.Error("SetEndDate '%s' error: %v", params[2], err)
+			return nil
+		}
 	case yh:
 		a = fintech.NewYahooFinanceAnalyzer()
 		params := strings.Split(opaque, kSemiColon)
@@ -624,17 +636,35 @@ func plotcmpSubGroupStocks(src, tag, gtag int, force bool, key1, key2, opaque, s
 	}
 }
 
+func getXQsymbols(dir string) []string {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		logger.Error("ReadDir(%s) error: %v", dir, err)
+		return nil
+	}
+	cxq := regexp.MustCompile(`^.xq.*.json$`)
+	sbs := make([]string, 0)
+	for _, nm := range files {
+		name := nm.Name()
+		if cxq.MatchString(name) {
+			n := len(name)
+			sbs = append(sbs, name[4:n-5])
+		}
+	}
+	return sbs
+}
+
 func getYHsymbols(dir string) []string {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		logger.Error("ReadDir(%s) error: %v", dir, err)
 		return nil
 	}
-	yh := regexp.MustCompile(`^.yh.*.rds$`)
+	cyh := regexp.MustCompile(`^.yh.*.rds$`)
 	sbs := make([]string, 0)
 	for _, nm := range files {
 		name := nm.Name()
-		if yh.MatchString(name) {
+		if cyh.MatchString(name) {
 			n := len(name)
 			sbs = append(sbs, name[4:n-4])
 		}
@@ -725,8 +755,23 @@ func main() {
 	}
 
 	if *debugFlag {
-		// debug mode: TODO
-		// cleanSzseData()
+		// debug mode: test XueQiu crawl 'BABA', and parse
+		c := fintech.NewXueQiuCrawler()
+		if err := c.SetAuth(filepath.Join(curdir, authFile)); err != nil {
+			logger.Error("SetAuth(%s) error: %v", authFile, err)
+			os.Exit(-1)
+		}
+		symbol := "BABA"
+		if err := c.Crawl(symbol); err != nil {
+			os.Exit(-2)
+		}
+		var xqsd fintech.XueQiuStockData
+		if dfile, err := xqsd.Parse2CSV(fintech.XQFile(symbol), "", ""); err != nil {
+			logger.Error("Parse downloaded '%s' error: %v", symbol, err)
+			os.Exit(-3)
+		} else {
+			c.Success("%s dumped successfully!", dfile)
+		}
 	} else if *listFlag {
 		// crawl & dump the US Exchange stock lists
 		p := fintech.NewNasdaqProcessor()
@@ -753,6 +798,12 @@ func main() {
 	} else if *crawlAllUsStocks {
 		if p := genParser(us); p != nil {
 			tdir := filepath.Join(curdir, "us")
+			switch stype {
+			case xq:
+				tdir = filepath.Join(tdir, "xueqiu")
+			case yh:
+				tdir = filepath.Join(tdir, "yahoo")
+			}
 			if err = os.MkdirAll(tdir, 0755); err != nil {
 				logger.Error("Mkdir %s error: %v", tdir, err)
 				os.Exit(-1)
@@ -890,9 +941,17 @@ func main() {
 		// show hk stock info
 		fmt.Printf("%s", showStock(*hkStockTag, hk, *forceFlag))
 	} else if *usCorrAnalysis != "" {
-		// analyze the correlation of a 'stock' with all the us market stocks, now YAHOO only
-		tdir := filepath.Join(curdir, "us")
-		sbs := getYHsymbols(tdir)
+		// analyze the correlation of a 'stock' with all the us market stocks
+		var tdir string
+		var sbs []string = nil
+		switch stype {
+		case xq:
+			tdir = filepath.Join(curdir, "us", "xueqiu")
+			sbs = getXQsymbols(tdir)
+		case yh:
+			tdir = filepath.Join(curdir, "us", "yahoo")
+			sbs = getYHsymbols(tdir)
+		}
 		if sbs == nil {
 			os.Exit(-1)
 		}
