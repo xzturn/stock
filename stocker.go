@@ -131,6 +131,7 @@ var hkplotsFlag *bool = flag.Bool("hkplots", false, "download then plot all the 
 var usCorrAnalysis *string = flag.String("usanalyze", "", "specify the stock symbol to calculate the corr with all the stocks in the us market")
 var startTime *string = flag.String("start", "", "specify the start time 'yyyymmdd', default nil means no specify")
 var endTime *string = flag.String("end", "", "specify the end time 'yyyymmdd', default nil means no specify")
+var meanAnalysis *string = flag.String("mean", "", "specify the stock symbol to do the mean (ma20) analyze")
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -770,7 +771,7 @@ func main() {
 			logger.Error("Parse downloaded '%s' error: %v", symbol, err)
 			os.Exit(-3)
 		} else {
-			c.Success("%s dumped successfully!", dfile)
+			c.Success("'tail -f %s' to check out!", dfile)
 		}
 	} else if *listFlag {
 		// crawl & dump the US Exchange stock lists
@@ -961,6 +962,17 @@ func main() {
 		}
 		if a := helperAnalyzer(stype, opaque3); a != nil {
 			fintech.Analyze(a, sbs, getCAPMindices(stype, us), *usCorrAnalysis, 100, *paramRF)
+		}
+	} else if *meanAnalysis != "" {
+		a := fintech.NewXueQiuAnalyzer2()
+		if err = a.SetAuth(authFile); err != nil {
+			logger.Error("SetAuth(%s) error: %v", authFile, err)
+		} else if err = a.SetStartDate(*startTime); err != nil {
+			logger.Error("SetStartDate(%s) error: %v", *startTime, err)
+		} else if err = a.SetEndDate(*endTime); err != nil {
+			logger.Error("SetEndDate(%s) error: %v", *endTime, err)
+		} else if err = a.MeanAnalyze(*meanAnalysis); err != nil {
+			logger.Error("Mean Analyze stock '%s' error: %v", *meanAnalysis, err)
 		}
 	} else if *plotSymbol != "" {
 		// plot xueqiu or yahoo symbols
